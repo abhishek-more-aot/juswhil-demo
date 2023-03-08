@@ -1,0 +1,371 @@
+<template>
+  <div class="form-block">
+    <div class="source">
+      <el-form
+        ref="postForm"
+        :model="postForm"
+        status-icon
+        :rules="rules"
+        label-width="160px"
+        class="demo-form"
+        label-position="left"
+      >
+        <el-form-item
+          style="margin-bottom: 20px;"
+          label="Enabled"
+          prop="enabled"
+        >
+          <el-switch v-model="postForm.enabled" />
+        </el-form-item>
+          <el-form-item
+          style="margin-bottom: 30px"
+          label="Image"
+          prop="image"
+        >
+        <upload-image
+          :key="renderKey"
+          :formField="postForm.image"
+          @handle-upload="updateTrendingImage"
+          @handle-remove="removeTrendingImage"
+         />
+         
+           <el-tooltip
+            class="item"
+            effect="dark"
+            content="Only Image of dimension 1000 * 1000 is accepted"
+            placement="right-start"
+          >
+            <span
+              class="el-icon-question"
+              style="font-size: 20px;"
+            />
+          </el-tooltip>
+        </el-form-item>
+
+        <el-form-item
+          style="margin-bottom: 20px; margin-top: 20px;"
+          label="Title"
+          prop="title"
+        >
+          <el-input
+            v-model="postForm.title"
+            name="title"
+            style="width: 50%"
+            required
+            placeholder="Title"
+          />
+        </el-form-item>
+        <el-form-item
+          style="margin-bottom: 20px; margin-top: 20px;"
+          label="Model Number"
+          prop="modelNo"
+        >
+          <el-input
+            v-model="postForm.modelNo"
+            name="modelNo"
+            style="width: 50%"
+            required
+            placeholder="Model Number"
+          />
+        </el-form-item>
+        <el-form-item
+          style="margin-bottom: 20px; margin-top: 20px;"
+          label="Model Name"
+          prop="modelName"
+        >
+          <el-input
+            v-model="postForm.modelName"
+            name="modelName"
+            style="width: 50%"
+            required
+            placeholder="Model Name"
+          />
+        </el-form-item>
+
+        <el-form-item
+          v-if="postForm.redirectionOption == 0"
+          style="margin-bottom: 20px;"
+          label="Category"
+          prop="redirectionValue"
+          :rules="{required: true, message: 'Please input category', trigger: ['blur','change']}"
+        >
+          <el-select
+            v-model="postForm.redirectionValue"
+            name="redirectionValue"
+            filterable
+            placeholder="Select"
+          >
+            <el-option
+              v-for="item in redirectionValue"
+              :key="item.id"
+              :label="item.name"
+              :value="item.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button
+            v-loading="loading"
+            v-waves
+            type="success"
+             style="background:#59b6e3;border:1px solid #59b6e3"
+            @click="submitForm"
+          >
+            {{ $t('global.form.save') }}
+          </el-button>
+          <el-button
+            v-waves
+            type="reset"
+            @click="resetForm"
+          >
+            {{ $t('global.form.reset') }}
+          </el-button>
+        </el-form-item>
+      </el-form>
+    </div>
+  </div>
+</template>
+
+<script lang="ts">
+import { Component, Prop, Vue } from 'vue-property-decorator'
+import { AppModule } from '@/store/modules/app'
+import { TagsViewModule, ITagView } from '@/store/modules/tags-view'
+import { Form } from 'element-ui'
+import router from '../../../router'
+import { Action } from 'vuex-module-decorators'
+import { getAdminsRoles } from '@/api/adminsRoles'
+import { getQuery } from '../../../utils'
+import {
+  defaultTrendingData,
+  updateTrending,
+  addTrending,
+  getTrendingById
+} from '@/api/trending'
+import PanThumb from '@/components/PanThumb/index.vue'
+import AvatarUpload from '@/components/AvatarUpload/index.vue'
+import { uploadFile } from '@/api/common'
+import { getCategorys } from '@/api/category'
+import UploadImage from '@/components/UploadImage/index.vue'
+import { getProducts } from '@/api/product'
+
+@Component({
+  name: 'TrendingDetail',
+  components: {
+    // PanThumb,
+    // AvatarUpload,
+    UploadImage
+  }
+})
+export default class extends Vue {
+  @Prop({ default: false }) private isEdit!: boolean;
+  private redirectionValue: any = []
+  private redirectionOption: any = [
+    {
+      id: 0,
+      name: 'Category Page'
+    }
+  ];
+
+  private showImageUpload = false;
+  private renderKey = 0;
+  private image =
+    'https://via.placeholder.com/';
+
+  private postForm = Object.assign({}, defaultTrendingData);
+  private loading = false;
+  private toggleShow() {
+    this.showImageUpload = !this.showImageUpload
+  }
+  private updateTrendingImage(res:any){
+    this.postForm.image=res;
+  }
+
+   private removeTrendingImage(){
+    this.postForm.image='';
+  }
+
+
+  private onCropUploadSuccess(jsonData: any, field: string) {
+    this.showImageUpload = false
+    this.image = jsonData.files[field]
+  }
+
+  private onClose() {
+    this.showImageUpload = false
+  }
+
+  private cropSuccess(imgDataUrl: string, field: string) {
+    this.image = imgDataUrl
+    
+    const data = new FormData()
+    fetch(imgDataUrl)
+      .then((res) => res.blob())
+      .then((blob) => {
+        const file = new File([blob], 'img.' + blob.type.split('/')[1], {
+          type: 'image/png'
+        })
+        data.append('file', file)
+        uploadFile(data, (event: ProgressEvent) => {
+          console.log(event)
+        }).then((res) => {
+          this.postForm.image = res.toString()
+        })
+      })
+  }
+
+  private rules = {
+
+    image: [
+      {
+        message: 'Please enter image',
+        required: true,
+        trigger: 'blur'
+      }
+    ],
+    redirectionType: [
+      {
+        message: 'Please enter type',
+        required: true,
+        trigger: 'blur'
+      }
+    ]
+  };
+
+  private tempTagView?: ITagView;
+
+  get lang() {
+    return AppModule.language
+  }
+
+  created() {
+    if (this.isEdit) {
+      const id = this.$route.params && this.$route.params.id
+      this.fetchData(parseInt(id))
+    } else {
+      this.postForm = Object.assign({}, defaultTrendingData)
+    }
+    // Why need to make a copy of this.$route here?
+    // Because if you enter this page and quickly switch tag, may be in the execution of this.setTagsViewTitle function, this.$route is no longer pointing to the current page
+    // https://github.com/PanJiaChen/vue-element-admin/issues/1221
+    this.tempTagView = Object.assign({}, this.$route)
+  }
+
+  private async fetchData(id: number) {
+    try {
+      const data: any = await getTrendingById(id)
+      this.postForm = data
+      this.renderKey++
+      this.image = data.image
+      this.fetchValues()
+      // Just for test
+      const title = 'image'
+      // Set tagsview title
+      this.setTagsViewTitle(title)
+      // Set page title
+      this.setPageTitle(title)
+    } catch (err) {
+      Promise.reject(err)
+    }
+  }
+
+  private async fetchValues() {
+    this.redirectionValue = await getCategorys(getQuery({
+      enabled: true,
+      isDeleted: false,
+      filter: {
+        enabled: 'eq',
+        isDeleted: 'eq'
+      }
+    }))
+  }
+
+  private setTagsViewTitle(title: string) {
+    const tagView = this.tempTagView
+    if (tagView) {
+      tagView.title = `${title}-${this.postForm.id}`
+      TagsViewModule.updateVisitedView(tagView)
+    }
+  }
+
+  private setPageTitle(title: string) {
+    document.title = `${title} - ${this.postForm.id}`
+  }
+
+  private submitForm() {
+    (this.$refs.postForm as Form).validate((valid) => {
+      if (valid) {
+        this.saveForm()
+      } else {
+        return false
+      }
+    })
+  }
+
+  private resetForm() {
+    (this.$refs.postForm as Form).resetFields()
+    
+    this.renderKey--
+    this.postForm.image = ''
+  }
+
+  @Action
+  public async saveForm() {
+    try {
+      this.loading = true
+      if (this.isEdit) {
+        await updateTrending(this.postForm.id, this.postForm)
+      } else {
+        await addTrending(this.postForm)
+      }
+
+      this.$notify({
+        title: 'Success',
+        message: 'Trending saved successfully',
+        type: 'success',
+        duration: 2000
+      })
+      router.push('/trending/list')
+    } catch (err) {
+      this.loading = false
+    }
+  }
+}
+</script>
+<style lang="scss">
+.admin-textarea {
+  textarea {
+    padding-right: 40px;
+    resize: none;
+    border: none;
+    border-radius: 0px;
+    border-bottom: 1px solid $textAreaBottom;
+  }
+}
+</style>
+
+<style lang="scss" scoped>
+.createPost-container {
+  position: relative;
+
+  .createPost-main-container {
+    padding: 40px 45px 20px 50px;
+
+    .postInfo-container {
+      position: relative;
+      @include clearfix;
+      margin-bottom: 10px;
+
+      .postInfo-container-item {
+        float: left;
+      }
+    }
+  }
+
+  .word-counter {
+    width: 40px;
+    position: absolute;
+    right: 10px;
+    top: 0px;
+  }
+}
+</style>
